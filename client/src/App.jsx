@@ -15,7 +15,7 @@ const App = () => {
     const deviceId = storedId || `device-${Date.now()}`;
     localStorage.setItem("deviceId", deviceId);
 
-    socketRef.current = io("http://localhost:3000", {
+    socketRef.current = io(import.meta.env.VITE_BACKEND_URL, {
       query: { deviceId },
     });
 
