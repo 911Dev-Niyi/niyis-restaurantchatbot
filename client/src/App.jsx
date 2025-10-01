@@ -7,6 +7,9 @@ const App = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [currentOrder, setCurrentOrder] = useState([]);
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionTimedOut, setConnectionTimedout] = useState(false);
+
   const socketRef = useRef(null); //SocketRef
   const suppressWelcomeRef = useRef(false); // 🛡️ Flag to suppress welcome after payment
 
@@ -17,7 +20,18 @@ const App = () => {
 
     socketRef.current = io(import.meta.env.VITE_BACKEND_URL, {
       query: { deviceId },
+      reconnectionAttempts: 5, // Try reconnecting up to 5 times
+      reconnectionDelay: 5000, // Wait 1 second between attempts
+      timeout: 10000, // Give up if no response in 5 seconds
     });
+
+    socketRef.current.on("connect", () => {
+      setIsConnected(true);
+    })
+
+    socketRef.current.on("disconnect", () => {
+      setIsConnected(false);
+    })
 
     socketRef.current.on("botReply", ({ reply, type }) => {
       if (type === "welcome" && suppressWelcomeRef.current) {
@@ -27,7 +41,16 @@ const App = () => {
       setMessages((prev) => [...prev, { sender: "bot", text: reply, type }]);
     });
 
-    return () => socketRef.current.disconnect();
+    const timeout = setTimeout(() =>{
+      if (!socketRef.current.connected) {
+        setConnectionTimedout(true);
+      }
+    }, 12000);
+
+    return () => {
+      clearTimeout(timeout);
+      socketRef.current.disconnect();
+    }
   }, []);
 
   const sendMessage = () => {
@@ -221,122 +244,138 @@ const App = () => {
   };
 
   return (
-    <main className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
-      <section className="w-full max-w-md bg-gray-800 rounded-xl shadow-lg p-4 space-y-4">
-        <h1 className="text-2xl font-extrabold text-center text-green-400 animate-pulse">
-          Niyi’s Restaurant Chatbot
-        </h1>
+  <main className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
+    <section className="w-full max-w-md bg-gray-800 rounded-xl shadow-lg p-4 space-y-4">
 
-        {/* Message Display */}
-        <div className="h-80 overflow-y-auto space-y-2 flex flex-col">
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`max-w-[80%] px-4 py-2 rounded-lg text-sm ${
-                msg.sender === "bot"
-                  ? "bg-green-700 text-white self-start"
-                  : "bg-blue-600 text-white self-end"
-              }`}
-            >
-              {msg.type === "menu" ? (
+      {/* Connection Status Banner */}
+      {!isConnected && !connectionTimedOut && (
+        <div className="flex items-center justify-center bg-yellow-100 text-yellow-800 p-2 rounded shadow mb-2">
+          <div className="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin mr-2" />
+          <p className="text-sm font-medium">Connecting to Niyi’s kitchen...</p>
+        </div>
+      )}
+
+      {connectionTimedOut && (
+        <div className="flex items-center justify-center bg-red-100 text-red-800 p-2 rounded shadow mb-2">
+          <p className="text-sm font-medium">⚠️ Connection timed out. Please refresh or try again later.</p>
+        </div>
+      )}
+
+      <h1 className="text-2xl font-extrabold text-center text-green-400 animate-pulse">
+        Niyi’s Restaurant Chatbot
+      </h1>
+
+      {/* Message Display */}
+      <div className="h-80 overflow-y-auto space-y-2 flex flex-col">
+        {messages.map((msg, i) => (
+          <div
+            key={i}
+            className={`max-w-[80%] px-4 py-2 rounded-lg text-sm ${
+              msg.sender === "bot"
+                ? "bg-green-700 text-white self-start"
+                : "bg-blue-600 text-white self-end"
+            }`}
+          >
+            {msg.type === "menu" ? (
+              <div className="grid grid-cols-2 gap-2">
+                {items.map((item, idx) => (
+                  <button
+                    key={idx}
+                    className="bg-gray-700 hover:bg-gray-800 text-white px-3 py-2 rounded text-left"
+                    onClick={() => sendQuickMessage(item.name)}
+                  >
+                    {item.name} – ₦{item.price}
+                  </button>
+                ))}
+              </div>
+            ) : msg.type === "welcome" ? (
+              <>
+                <p>{msg.text}</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {items.map((item, idx) => (
+                  {[
+                    { label: "View Menu", value: "menu" },
+                    { label: "Checkout", value: "99" },
+                    { label: "Order History", value: "98" },
+                    { label: "Current Order", value: "97" },
+                    { label: "Cancel Order", value: "0" },
+                  ].map((btn, i) => (
                     <button
-                      key={idx}
-                      className="bg-gray-700 hover:bg-gray-800 text-white px-3 py-2 rounded text-left"
-                      onClick={() => sendQuickMessage(item.name)}
+                      key={i}
+                      className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded"
+                      onClick={() => sendQuickMessage(btn.value)}
                     >
-                      {item.name} – ₦{item.price}
+                      {btn.label}
                     </button>
                   ))}
                 </div>
-              ) : msg.type === "welcome" ? (
-                <>
-                  <p>{msg.text}</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { label: "View Menu", value: "menu" },
-                      { label: "Checkout", value: "99" },
-                      { label: "Order History", value: "98" },
-                      { label: "Current Order", value: "97" },
-                      { label: "Cancel Order", value: "0" },
-                    ].map((btn, i) => (
-                      <button
-                        key={i}
-                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded"
-                        onClick={() => sendQuickMessage(btn.value)}
-                      >
-                        {btn.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : msg.type === "postPaymentMenu" ? (
-                <>
-                  <p>{msg.text}</p>
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    {[
-                      { label: "View Menu", value: "menu" },
-                      { label: "Checkout", value: "99" },
-                      { label: "Order History", value: "98" },
-                      { label: "Current Order", value: "97" },
-                      { label: "Cancel Order", value: "0" },
-                    ].map((btn, i) => (
-                      <button
-                        key={i}
-                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded"
-                        onClick={() => sendQuickMessage(btn.value)}
-                      >
-                        {btn.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : msg.type === "postAdd" ? (
-                <>
-                  <p>{msg.text}</p>
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    {[
-                      { label: "Add Another Item", value: "1" },
-                      { label: "View Current Order", value: "97" },
-                      { label: "Cancel Order", value: "0" },
-                      { label: "Checkout", value: "99" },
-                    ].map((btn, i) => (
-                      <button
-                        key={i}
-                        className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded"
-                        onClick={() => sendQuickMessage(btn.value)}
-                      >
-                        {btn.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <pre className="whitespace-pre-wrap">{msg.text}</pre>
-              )}
-            </div>
-          ))}
-        </div>
+              </>
+            ) : msg.type === "postPaymentMenu" ? (
+              <>
+                <p>{msg.text}</p>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {[
+                    { label: "View Menu", value: "menu" },
+                    { label: "Checkout", value: "99" },
+                    { label: "Order History", value: "98" },
+                    { label: "Current Order", value: "97" },
+                    { label: "Cancel Order", value: "0" },
+                  ].map((btn, i) => (
+                    <button
+                      key={i}
+                      className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded"
+                      onClick={() => sendQuickMessage(btn.value)}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : msg.type === "postAdd" ? (
+              <>
+                <p>{msg.text}</p>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {[
+                    { label: "Add Another Item", value: "1" },
+                    { label: "View Current Order", value: "97" },
+                    { label: "Cancel Order", value: "0" },
+                    { label: "Checkout", value: "99" },
+                  ].map((btn, i) => (
+                    <button
+                      key={i}
+                      className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded"
+                      onClick={() => sendQuickMessage(btn.value)}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <pre className="whitespace-pre-wrap">{msg.text}</pre>
+            )}
+          </div>
+        ))}
+      </div>
 
-        {/* Input Field + Send Button */}
-        <div className="flex gap-2">
-          <input
-            className="flex-1 bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
-          />
-          <button
-            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded font-semibold"
-            onClick={sendMessage}
-          >
-            Send
-          </button>
-        </div>
-      </section>
-    </main>
-  );
+      {/* Input Field + Send Button */}
+      <div className="flex gap-2">
+        <input
+          className="flex-1 bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Type your message..."
+        />
+        <button
+          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded font-semibold"
+          onClick={sendMessage}
+        >
+          Send
+        </button>
+      </div>
+    </section>
+  </main>
+);
+
 };
 
 export default App;

@@ -57,6 +57,39 @@ button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
+.connecting-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff8e1;
+  color: #333;
+  padding: 1rem;
+  border-bottom: 1px solid #ffd54f;
+  font-size: 0.95rem;
+}
+
+.connecting-banner.error {
+  background: #ffebee;
+  color: #c62828;
+  border-bottom: 1px solid #ef5350;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  border: 2px solid #ffd54f;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 
 @media (prefers-color-scheme: light) {
   :root {
