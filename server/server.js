@@ -16,7 +16,8 @@ app.use("/", paymentRoutes);
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: '*' }
+  cors: { origin: '*' },
+  transports: ["websocket", "polling"], // Explicitly alow both
 });
 
 io.on('connection', socket => {
